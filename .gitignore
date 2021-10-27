@@ -127,3 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+CapStructure-Cohn/HW1/.DS_Store
+CapStructure-Cohn/.DS_Store
+*.csv
