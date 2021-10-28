@@ -1,3 +1,0 @@
-^SP500TR
-^IRX
-^TNX
