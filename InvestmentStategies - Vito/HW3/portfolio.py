@@ -1,15 +1,17 @@
 import pandas as pd
 import numpy as np
 
-exec(open("trading_algo.py").read())
+# exec(open("trading_algo.py").read())
 
 # import TradingAlgo
-
+if __name__ == "__main__":
+    print("Building Portfolios and Initialising Trading Algorithms")
+    trade_module = __import__("trading_algo")
 
 class Portfolio:
     def __init__(self, target: str,
                 tickerset: set,
-                trading_algo: TradingAlgo,
+                trading_algo: str,
                 investment: int = 1000,
                 rebalance : int = 0,
                 reconstitute : int = 1) -> None:
@@ -20,7 +22,8 @@ class Portfolio:
         self.target = target
         self.ticker_set = tickerset
         self.tickers = []
-        self.trading_algo = trading_algo
+
+        self.trading_algo = getattr(trade_module, trading_algo)
         
         self.start_nav = investment
         self.prevday_nav = investment
