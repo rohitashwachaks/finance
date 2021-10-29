@@ -23,12 +23,13 @@ class Portfolio:
         self.ticker_set = tickerset
         self.tickers = []
 
-        self.trading_algo = getattr(trade_module, trading_algo)
+        algo = getattr(trade_module, trading_algo)
+        self.trading_algo = algo()
         
         self.start_nav = investment
         self.prevday_nav = investment
         self.current_nav = investment
-        self.dividents = pd.Series([], dtype= float)                      # ignore dividents for now
+        self.dividents = pd.Series([], dtype= float)
         
         self.weights = pd.Series([], dtype= float)                        # Equally balanced portfolio. Should Contain number of stocks owned. Ideally, Whole Numbers
         self.last_rebalancing_date = pd.to_datetime("01-01-1990")         # First rebalancing at 01st, Jan
