@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import math
 
-class TradingAlgo:
+class TradingAlgo():
     def __init__(self, name: str) -> None:
         self.identifier = name
         pass
@@ -21,7 +21,6 @@ class DJIA_Algo(TradingAlgo):
                 investment: float) -> pd.Series(dtype=float):
         total_price = sum(price["close"])
 
-        # weights = (((price["close"]/nav)*self.current_nav)/price["close"]).apply(math.floor)
         weights = [investment/total_price]*len(price.index)                             # Equivalent to the above Equation
         weights = pd.Series(weights, index= price.index)#.apply(math.floor)
         return weights
