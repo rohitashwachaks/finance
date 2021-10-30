@@ -50,8 +50,9 @@ class constant_weight_Algo(TradingAlgo):
         return weights
 
 class capm_Algo(TradingAlgo):
-    def __init__(self, short: bool = False) -> None:
+    def __init__(self, short: bool = False, lever: float = 0.1) -> None:
         self.isShortAllowed = short
+        self.max_leverage = lever
         super().__init__("CAPM Weights")
         pass
 
@@ -77,7 +78,7 @@ class capm_Algo(TradingAlgo):
 
         # Defining Model's Decision Variables
         maxSharpe_model = gb.Model("MaxSharpe")
-        model_X = maxSharpe_model.addMVar(variables)
+        model_X = maxSharpe_model.addMVar(variables, lb = (-1* self.max_leverage))
         
         # Defining Model's Objective Function (Minimize Risk)
         risk = model_X@ self.sigma @model_X
