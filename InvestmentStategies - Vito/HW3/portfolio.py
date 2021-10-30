@@ -109,7 +109,7 @@ class Portfolio:
                     self.current_nav = self.weights.multiply(price["close"]).sum() + self.dividents.sum()
                     
                 
-                self.weights = self.trading_algo.run(price, self.current_nav)
+                self.weights = self.trading_algo.run(price, self.current_nav, date)
                 self.last_rebalancing_date = date
                 self.IsWeightInitialised = True
             else:
