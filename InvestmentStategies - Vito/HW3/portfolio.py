@@ -12,9 +12,9 @@ class Portfolio:
     def __init__(self, target: str,
                 tickerset: set,
                 trading_algo: str,
-                investment: int = 1000,
-                rebalance : int = 0,
-                reconstitute : int = 1) -> None:
+                investment: int = 100,
+                rebalance : int = 1,
+                reconstitute : int = 100) -> None:
         '''
             Initialise portfolio
         '''
@@ -33,7 +33,7 @@ class Portfolio:
         
         self.weights = pd.Series([], dtype= float)                        # Equally balanced portfolio. Should Contain number of stocks owned. Ideally, Whole Numbers
         self.last_rebalancing_date = pd.to_datetime("01-01-1990")         # First rebalancing at 01st, Jan
-        self.rebalancing_interval = rebalance - 1                         # in month (plus 1, because that month included)
+        self.rebalancing_interval = rebalance                             # in month
         self.last_reconstitution_date = pd.to_datetime("01-01-1990")      # First reconstitution at 01st, Jan
         self.reconstitution_interval = reconstitute                       # in years
         pass
@@ -133,6 +133,7 @@ class Portfolio:
                 self.reconstitute(date= date, price= price, tickerlist= tickerlist)
             else: 
                 price = price[price.apply(lambda x: (x.name in self.tickers),axis = 1)]
+                
                 if price.shape[0] == 0:
                     return (-1,-1)
                 if self.isUpdateAllowed(date):

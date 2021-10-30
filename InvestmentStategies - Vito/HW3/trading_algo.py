@@ -49,74 +49,145 @@ class constant_weight_Algo(TradingAlgo):
         weights = weights.divide(price["close"])
         return weights
 
-class capm_Algo(TradingAlgo):
-    def __init__(self, short: bool = False, lever: float = 0.1) -> None:
-        self.isShortAllowed = short
-        self.max_leverage = lever
-        super().__init__("CAPM Weights")
-        pass
+class retrospective_sharpe_Algo(TradingAlgo):
+    def __init__(self) -> None:
+        super().__init__("Retrospective Max Weights")
+        return
 
-    def calculate_inputs(self, date: pd.Timestamp)->None:
-        # stocks = yf.Tickers(" ".join(self.tics))
-        stock_data = yf.download(" ".join(self.tics), start=(date -  pd.Timedelta("5 Y")), end=date)["Close"].dropna()
+    def init_params(self, ticker_list: list,
+                    lever: float = 0.0,
+                    max_cap: float = 0.45,
+                    start_date: pd.Timestamp = pd.to_datetime("12/31/2010"),
+                    end_date: pd.Timestamp = pd.to_datetime("12/31/2020")) -> None:
+        self.tics = ticker_list
+        self.max_leverage = lever
+        self.max_allocation = max_cap
+
+        self.calculate_inputs(start_date, end_date)
+        self.maximise_sharpe()
+        return
+
+    def calculate_inputs(self, start_date: pd.Timestamp, end_date: pd.Timestamp = pd.to_datetime("12/31/2020"))->None:
+        stock_data = yf.download(" ".join(self.tics), start=start_date, end=end_date)["Close"].dropna()
         stock_data = stock_data.pct_change()[1:]
         
         self.sigma = np.cov(stock_data.cov())
-        # print("Sigma Matrix Calculated. Shape:",self.sigma.shape)
-
         self.expected_returns = np.array(stock_data.mean())
-        # print("Expected Returns are:",self.expected_returns)
-
         return
 
     def maximise_sharpe(self):
         variables = len(self.tics)
 
-        constraints = 1     # Shorting of stocks allowed
-        if not self.isShortAllowed:
-            constraints += variables      # No-Shorting of stocks allowed
-
         # Defining Model's Decision Variables
         maxSharpe_model = gb.Model("MaxSharpe")
-        model_X = maxSharpe_model.addMVar(variables, lb = (-1* self.max_leverage))
+        y = maxSharpe_model.addMVar(variables, 
+                                        lb = -self.max_leverage,
+                                        ub = self.max_allocation)
         
         # Defining Model's Objective Function (Minimize Risk)
-        risk = model_X@ self.sigma @model_X
+        risk = y @ self.sigma @ y
         maxSharpe_model.setObjective(risk, sense=gb.GRB.MINIMIZE)
 
         # Defining Constraints
-        A = np.zeros((constraints,variables)) # initialize constraint matrix
-        A[0] = self.expected_returns # Sum of weights = 1
-        if not self.isShortAllowed:
-            A[1:] = np.diag(self.expected_returns) # No shorting
-
-        b = np.array([1]+[0]*(constraints-1))
-
-        sense = np.array(["="]+[">"]*(constraints-1))
-
-        model_constraints = maxSharpe_model.addMConstrs(A, model_X, sense, b)
-        # print_equations(np.array([0]*variables), A, sense,b)
+        A = np.ones((1,variables)) # Sum of weights = 1
+        b = np.array([1])
+        sense = np.array(["="])
+        maxSharpe_model.addMConstrs(A, y, sense, b)
 
         # Optimize Model
         maxSharpe_model.Params.OutputFlag = 0
         maxSharpe_model.optimize()
 
-        optimal_obj = maxSharpe_model.objVal
-        optimal_values = model_X.x
+        # optimal_obj = maxSharpe_model.objVal
+        optimal_values = y.x
 
-        efficient_weights = np.round(np.multiply(self.expected_returns,optimal_values),2)
-        return efficient_weights
-        # efficient_returns = efficient_weights@e_returns.T
-        # efficient_vol = np.sqrt(efficient_weights.T@covarience@efficient_weights)
-
-        # print("Efficent Portfolio Weights:", efficient_weights)
-        # print("Efficient Portfolio E(returns): ",efficient_returns*100,"%")
-        # print("Efficient Portfolio Volatility: ",np.round(efficient_vol,5))
-        # pass
+        self.weights = np.round(optimal_values/optimal_values.sum(), 2)
+        return
 
     def run(self, price: pd.DataFrame, investment: float, date: pd.Timestamp) -> pd.Series(dtype=float):
-        self.tics = price.index.tolist()
+        if self.weights is None:
+            self.tics = price.index.tolist()
+            self.calculate_inputs(date)
+            self.maximise_sharpe()
+        weights = pd.Series(self.weights, index = price.index)*investment#.apply(math.floor)
+        weights = weights.divide(price["close"])
+        return weights
+
+
+class capm_Algo(TradingAlgo):
+    def __init__(self) -> None:
+        super().__init__("CAPM Weights")
+        self.tics = None
+        pass
+
+    def init_params(self,
+                    lever: float = 0.0,
+                    max_cap: float = 0.45) -> None:
+        self.max_leverage = lever
+        self.max_allocation = max_cap
+        return
+
+    def calculate_inputs(self, date: pd.Timestamp)->None:
+        stock_data = yf.download(" ".join(self.tics), start=(date -  pd.Timedelta("5 Y")), end=date)["Close"].dropna()
+        stock_data = stock_data.pct_change()[1:]
+        
+        self.sigma = np.cov(stock_data.cov())
+        self.expected_returns = np.array(stock_data.mean())
+        return
+
+    def maximise_sharpe(self)-> np.array:
+        variables = len(self.tics)
+
+        # Defining Model's Decision Variables
+        maxSharpe_model = gb.Model("MaxSharpe")
+        y = maxSharpe_model.addMVar(variables, 
+                                        lb = -self.max_leverage,
+                                        ub = self.max_allocation)
+        
+        # Defining Model's Objective Function (Minimize Risk)
+        risk = y @ self.sigma @ y
+        maxSharpe_model.setObjective(risk, sense=gb.GRB.MINIMIZE)
+
+        # Defining Constraints
+        A = np.ones((1,variables)) # Sum of weights = 1
+        b = np.array([1])
+        sense = np.array(["="])
+        maxSharpe_model.addMConstrs(A, y, sense, b)
+
+        # Optimize Model
+        maxSharpe_model.Params.OutputFlag = 0
+        maxSharpe_model.optimize()
+
+        # optimal_obj = maxSharpe_model.objVal
+        optimal_values = y.x
+
+        weights = np.round(optimal_values/optimal_values.sum(), 2)
+        return weights
+
+    def run(self, price: pd.DataFrame, investment: float, date: pd.Timestamp) -> pd.Series(dtype=float):
+        if self.tics is None:
+            self.tics = price.index.tolist()
         self.calculate_inputs(date)
         weights = pd.Series(self.maximise_sharpe(), index = price.index)*investment#.apply(math.floor)
         weights = weights.divide(price["close"])
         return weights
+
+
+#------
+
+def print_equations(obj, constraint, sense, b):
+    print("Optimise System of equations:")
+    for i in range(constraint.shape[0]):
+        char = "a"
+        print("\t"+str(i+1)+")",end=" ")
+        for j in range(constraint.shape[1]):
+            print(str(constraint[i,j])+char,end=" + ")
+            char = chr(ord(char) + 1)
+        print("\b\b "+sense[i]+"= "+str(b[i]))
+    char = "a"
+    print("Subject to:", end=" ")
+    for item in obj:
+        print(str(item)+char,end=" + ")
+        char = chr(ord(char) + 1)
+    print("\b\b")
+    return
