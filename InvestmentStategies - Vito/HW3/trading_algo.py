@@ -55,24 +55,18 @@ class retrospective_sharpe_Algo(TradingAlgo):
         return
 
     def init_params(self, ticker_list: list,
+                    dataset = pd.DataFrame,
                     lever: float = 0.0,
-                    max_cap: float = 0.45,
-                    start_date: pd.Timestamp = pd.to_datetime("12/31/2010"),
-                    end_date: pd.Timestamp = pd.to_datetime("12/31/2020")) -> None:
+                    max_cap: float = 0.45) -> None:
+        self.stock_data = dataset.pct_change()[1:]
         self.tics = ticker_list
         self.max_leverage = lever
         self.max_allocation = max_cap
 
-        self.calculate_inputs(start_date, end_date)
-        self.maximise_sharpe()
-        return
-
-    def calculate_inputs(self, start_date: pd.Timestamp, end_date: pd.Timestamp = pd.to_datetime("12/31/2020"))->None:
-        stock_data = yf.download(" ".join(self.tics), start=start_date, end=end_date)["Close"].dropna()
-        stock_data = stock_data.pct_change()[1:]
+        self.sigma = np.cov(self.stock_data.cov())
+        self.expected_returns = np.array(self.stock_data.mean())
         
-        self.sigma = np.cov(stock_data.cov())
-        self.expected_returns = np.array(stock_data.mean())
+        self.maximise_sharpe()
         return
 
     def maximise_sharpe(self):
@@ -110,14 +104,9 @@ class retrospective_sharpe_Algo(TradingAlgo):
         return
 
     def run(self, price: pd.DataFrame, investment: float, date: pd.Timestamp) -> pd.Series(dtype=float):
-        if self.weights is None:
-            self.tics = price.index.tolist()
-            self.calculate_inputs(date)
-            self.maximise_sharpe()
-        weights = pd.Series(self.weights, index = price.index)*investment#.apply(math.floor)
-        weights = weights.divide(price["close"])
-        return weights
-
+        wt = pd.Series(self.weights, index = price.index)*investment#.apply(math.floor)
+        wt = wt.divide(price["close"])
+        return wt
 
 class capm_Algo(TradingAlgo):
     def __init__(self) -> None:
@@ -126,20 +115,23 @@ class capm_Algo(TradingAlgo):
         pass
 
     def init_params(self,
+                    dataset: pd.DataFrame,
                     lever: float = 0.0,
                     max_cap: float = 0.45,
                     lookback: str = "1 y") -> None:
+        self.stock_data = dataset
         self.max_leverage = lever
         self.max_allocation = max_cap
         self.lookback = lookback
         return
 
     def calculate_inputs(self, date: pd.Timestamp)->None:
-        stock_data = yf.download(" ".join(self.tics), start=(date -  pd.Timedelta(self.lookback)), end=date)["Close"].dropna()
-        stock_data = stock_data.pct_change()[1:]
+        start_date = date -  pd.Timedelta(self.lookback)
+        data = self.stock_data[(self.stock_data.index >= start_date) & (self.stock_data.index <=date)]
+        data = data.pct_change()[1:]
         
-        self.sigma = np.cov(stock_data.cov())
-        self.expected_returns = np.array(stock_data.mean())
+        self.sigma = np.cov(data.cov())
+        self.expected_returns = np.array(data.mean())
         return
 
     def maximise_sharpe(self)-> None:
@@ -188,23 +180,3 @@ class capm_Algo(TradingAlgo):
 
     def get_weights(self)->np.array:
         return self.weights
-
-
-#------
-
-def print_equations(obj, constraint, sense, b):
-    print("Optimise System of equations:")
-    for i in range(constraint.shape[0]):
-        char = "a"
-        print("\t"+str(i+1)+")",end=" ")
-        for j in range(constraint.shape[1]):
-            print(str(constraint[i,j])+char,end=" + ")
-            char = chr(ord(char) + 1)
-        print("\b\b "+sense[i]+"= "+str(b[i]))
-    char = "a"
-    print("Subject to:", end=" ")
-    for item in obj:
-        print(str(item)+char,end=" + ")
-        char = chr(ord(char) + 1)
-    print("\b\b")
-    return
